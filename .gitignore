@@ -37,4 +37,4 @@ coverage/
 *.sw?
 
 # Optional: brand assets (avoid publishing a proprietary logo)
-public/logo_hidraulicos.webp
+public/

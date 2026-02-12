@@ -48,7 +48,15 @@ npm run preview
     - **Línea de venta** (se autocompleta desde “concepto”, pero se puede ajustar manualmente).
 - Sanitización básica:
   - **NIT** y **Celular** aceptan solo números (se eliminan letras/símbolos).
-  - Correo: intenta normalizar frases dictadas como `arroba`, `punto`, `guion bajo`, etc.
+  - **Correo**: normaliza frases dictadas:
+    - `arroba` → `@`
+    - `punto` → `.`
+    - `guion bajo` / `underscore` → `_`
+    - `guion` / `guion medio` → `-`
+    - Se **eliminan automáticamente los acentos** (é, á, í, ó, ú, ñ, etc.) para validez en dominios.
+- Campos con opción "nulo":
+  - Puedes decir/escribir **"nulo"**, **"null"**, **"ninguno"**, **"n/a"** en: NIT, Nombre de Empresa, Nombre del Cliente, Celular, Correo.
+  - Esto dejará el campo vacío (permitido si no es obligatorio).
 
 ## Reglas del formulario (validación)
 

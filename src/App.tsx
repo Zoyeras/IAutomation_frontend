@@ -66,6 +66,7 @@ const VoiceForm: React.FC = () => {
   const [step, setStep] = useState(0);
   const [isListening, setIsListening] = useState(false);
   const [lineaVentaManual, setLineaVentaManual] = useState(false);
+  const [modal, setModal] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const [data, setData] = useState<ClientData>({
     nit: "",
@@ -105,6 +106,9 @@ const VoiceForm: React.FC = () => {
 
       // Primero quitamos espacios alrededor para evitar casos raros
       s = s.replace(/\s+/g, " ").trim();
+
+      // Eliminar acentos usando normalización Unicode
+      s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
       // Reemplazos multi-palabra primero
       s = s
@@ -195,9 +199,11 @@ const VoiceForm: React.FC = () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       window.speechSynthesis.getVoices();
-      alert("Hardware listo.");
+      setModal({ type: "success", message: "Hardware sincronizado correctamente" });
+      setTimeout(() => setModal(null), 2000);
     } catch {
-      alert("Error de hardware.");
+      setModal({ type: "error", message: "Error al sincronizar hardware" });
+      setTimeout(() => setModal(null), 2000);
     }
   };
 
@@ -280,16 +286,51 @@ const VoiceForm: React.FC = () => {
 
   const guardarEnBackend = async () => {
     try {
-      const response = await fetch("http://localhost:5016/api/Registros", {
+      // Usar ruta relativa para que funcione tanto en desarrollo como producción
+      const apiUrl = window.location.hostname === 'localhost' && window.location.port === '5173'
+        ? "http://localhost:5016/api/Registros"
+        : "/api/Registros";
+      
+      const response = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
-      if (response.ok) alert("¡Guardado en Postgres!");
-      else alert("No se pudo guardar. Revisa el backend.");
-    } catch {
-      alert("Error de conexión.");
+      console.log("Response status:", response.status);
+
+      if (response.ok || response.status === 200 || response.status === 201) {
+        setModal({ type: "success", message: "Datos guardados exitosamente" });
+
+        // Limpiar los campos del formulario
+        setData({
+          nit: "",
+          empresa: "",
+          ciudad: "",
+          cliente: "",
+          celular: "",
+          correo: "",
+          tipoCliente: "",
+          concepto: "",
+          medioContacto: "",
+          asignadoA: "",
+          lineaVenta: "",
+        });
+
+        // Resetear el paso al inicio
+        setStep(0);
+
+        // Refrescar la página después de 3 segundos
+        setTimeout(() => {
+          window.location.reload();
+        }, 3000);
+      } else {
+        await response.text(); // Consumir el response
+        setModal({ type: "error", message: `Error al guardar. Status: ${response.status}` });
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setModal({ type: "error", message: "Error de conexión al servidor" });
     }
   };
 
@@ -479,6 +520,59 @@ const VoiceForm: React.FC = () => {
           GUARDAR EN SISTEMA
         </button>
       </div>
+
+      {/* Modal de éxito/error */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl p-8 w-96 shadow-2xl text-center animate-in fade-in zoom-in-50 duration-300">
+            {/* Icono de éxito */}
+            {modal.type === "success" && (
+              <div className="mx-auto mb-6">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100">
+                  <svg className="w-10 h-10 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+              </div>
+            )}
+
+            {/* Icono de error */}
+            {modal.type === "error" && (
+              <div className="mx-auto mb-6">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-100">
+                  <svg className="w-10 h-10 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+              </div>
+            )}
+
+            {/* Mensaje */}
+            <h2 className={`text-2xl font-black mb-2 ${modal.type === "success" ? "text-green-600" : "text-red-600"}`}>
+              {modal.type === "success" ? "¡Correcto!" : "Error"}
+            </h2>
+            <p className="text-gray-700 text-base mb-6">{modal.message}</p>
+
+            {/* Botón cerrar (solo para error, success se cierra automático) */}
+            {modal.type === "error" && (
+              <button
+                onClick={() => setModal(null)}
+                className="px-6 py-2 bg-[#cf1313] hover:bg-[#b90f0f] text-white font-black rounded-lg transition-colors"
+              >
+                OK
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

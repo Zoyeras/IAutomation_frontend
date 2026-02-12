@@ -48,7 +48,15 @@ npm run preview
     - **Sales line** (auto-detected from “concept”, can be overridden manually).
 - Basic input sanitizing:
   - **NIT** and **Phone** are numeric-only (letters/symbols are stripped).
-  - Email tries to normalize spoken punctuation like `arroba` (at), `punto` (dot), `guion bajo` (underscore), etc.
+  - **Email** normalizes spoken punctuation:
+    - `arroba` → `@`
+    - `punto` → `.`
+    - `guion bajo` / `underscore` → `_`
+    - `guion` / `guion medio` → `-`
+    - **Accents are automatically removed** (é, á, í, ó, ú, ñ, etc.) for domain validity.
+- Fields with "null" option:
+  - You can say/type **"nulo"**, **"null"**, **"ninguno"**, **"n/a"** in: NIT, Company name, Customer name, Phone, Email.
+  - This leaves the field empty (allowed if not required).
 
 ## Form rules (validation)
 

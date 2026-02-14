@@ -13,7 +13,12 @@ interface ClientData {
   // Deben coincidir con el backend (.NET Registro)
   medioContacto: "WhatsApp" | "Correo" | "";
   asignadoA: string; // Enviamos el NOMBRE (ej: "LILIANA DEL PILAR") para que backend lo mapee a ID
-  lineaVenta: "Venta" | "Mantenimiento" | "Servicio montacargas" | "Alquiler montacargas" | "";
+  lineaVenta:
+    | "Venta"
+    | "Mantenimiento"
+    | "Servicio montacargas"
+    | "Alquiler montacargas"
+    | "";
 }
 
 const ASIGNADOS: { id: string; label: string }[] = [
@@ -38,7 +43,8 @@ const detectLineaVenta = (conceptoRaw: string): ClientData["lineaVenta"] => {
   }
 
   // mantenimiento
-  if (c.includes("mantenimiento") || c.includes("manten")) return "Mantenimiento";
+  if (c.includes("mantenimiento") || c.includes("manten"))
+    return "Mantenimiento";
 
   // venta
   if (c.includes("venta") || c.includes("vent")) return "Venta";
@@ -59,14 +65,18 @@ type MinimalSpeechRecognition = {
 };
 type MinimalSpeechRecognitionCtor = new () => MinimalSpeechRecognition;
 
-const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const isValidEmail = (email: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 const VoiceForm: React.FC = () => {
   const [started, setStarted] = useState(false);
   const [step, setStep] = useState(0);
   const [isListening, setIsListening] = useState(false);
   const [lineaVentaManual, setLineaVentaManual] = useState(false);
-  const [modal, setModal] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [modal, setModal] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   const [data, setData] = useState<ClientData>({
     nit: "",
@@ -82,19 +92,20 @@ const VoiceForm: React.FC = () => {
     lineaVenta: "",
   });
 
-  const fields: { key: keyof ClientData; label: string; prompt: string }[] = React.useMemo(
-    () => [
-      { key: "nit", label: "NIT", prompt: "Dime el NIT de la empresa" },
-      { key: "empresa", label: "Nombre de Empresa", prompt: "¿Cuál es el nombre de la empresa?" },
-      { key: "ciudad", label: "Ciudad", prompt: "¿En qué ciudad se encuentra?" },
-      { key: "cliente", label: "Nombre del Cliente", prompt: "¿Cómo se llama el contacto?" },
-      { key: "celular", label: "Celular", prompt: "Dime el número de celular" },
-      { key: "correo", label: "Correo", prompt: "¿Cuál es el correo electrónico?" },
-      { key: "tipoCliente", label: "Tipo de Cliente", prompt: "¿Es Nuevo, Antiguo, Fidelizado o Recuperado?" },
-      { key: "concepto", label: "Concepto", prompt: "Dime el concepto de este registro" },
-    ],
-    []
-  );
+  const fields: { key: keyof ClientData; label: string; prompt: string }[] =
+    React.useMemo(
+      () => [
+        { key: "nit", label: "NIT", prompt: "NIT" },
+        { key: "empresa", label: "Nombre de Empresa", prompt: "Empresa" },
+        { key: "ciudad", label: "Ciudad", prompt: "Ciudad" },
+        { key: "cliente", label: "Nombre del Cliente", prompt: "Nombre" },
+        { key: "celular", label: "Celular", prompt: "Celular" },
+        { key: "correo", label: "Correo", prompt: "Correo" },
+        { key: "tipoCliente", label: "Tipo de Cliente", prompt: "Tipo" },
+        { key: "concepto", label: "Concepto", prompt: "Concepto" },
+      ],
+      [],
+    );
 
   const cleanInput = (key: keyof ClientData, value: string): string => {
     const clean = value.trim();
@@ -158,7 +169,13 @@ const VoiceForm: React.FC = () => {
       let nextValue = value;
 
       // Permitir decir/escribir "nulo" para dejar el campo vacío (solo en campos permitidos)
-      const allowNuloKeys: Array<keyof ClientData> = ["nit", "empresa", "cliente", "celular", "correo"];
+      const allowNuloKeys: Array<keyof ClientData> = [
+        "nit",
+        "empresa",
+        "cliente",
+        "celular",
+        "correo",
+      ];
       if (allowNuloKeys.includes(key)) {
         const normalized = String(nextValue).trim().toLowerCase();
         if (
@@ -192,14 +209,17 @@ const VoiceForm: React.FC = () => {
         return next;
       });
     },
-    [lineaVentaManual]
+    [lineaVentaManual],
   );
 
   const syncHardware = async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       window.speechSynthesis.getVoices();
-      setModal({ type: "success", message: "Hardware sincronizado correctamente" });
+      setModal({
+        type: "success",
+        message: "Hardware sincronizado correctamente",
+      });
       setTimeout(() => setModal(null), 2000);
     } catch {
       setModal({ type: "error", message: "Error al sincronizar hardware" });
@@ -207,32 +227,23 @@ const VoiceForm: React.FC = () => {
     }
   };
 
-  const speak = (text: string, callback?: () => void) => {
+  const speak = (text: string) => {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "es-ES";
-
-    const safetyTimer = setTimeout(() => callback?.(), 3500);
-
-    utterance.onend = () => {
-      clearTimeout(safetyTimer);
-      callback?.();
-    };
-    utterance.onerror = () => {
-      clearTimeout(safetyTimer);
-      callback?.();
-    };
 
     window.speechSynthesis.speak(utterance);
   };
 
   const startListening = useCallback(() => {
-    const SpeechRecognitionCtor = ((window as unknown as {
-      webkitSpeechRecognition?: unknown;
-      SpeechRecognition?: unknown;
-    }).webkitSpeechRecognition || (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition) as
-      | MinimalSpeechRecognitionCtor
-      | undefined;
+    const SpeechRecognitionCtor = ((
+      window as unknown as {
+        webkitSpeechRecognition?: unknown;
+        SpeechRecognition?: unknown;
+      }
+    ).webkitSpeechRecognition ||
+      (window as unknown as { SpeechRecognition?: unknown })
+        .SpeechRecognition) as MinimalSpeechRecognitionCtor | undefined;
 
     if (!SpeechRecognitionCtor) return;
 
@@ -274,7 +285,8 @@ const VoiceForm: React.FC = () => {
 
     // Medio de contacto NO es obligatorio, pero si lo eligen validamos consistencia
     if (data.medioContacto === "Correo") {
-      if (!data.correo || !isValidEmail(data.correo)) errors.push("Correo inválido para medio Correo");
+      if (!data.correo || !isValidEmail(data.correo))
+        errors.push("Correo inválido para medio Correo");
     }
 
     if (data.medioContacto === "WhatsApp") {
@@ -287,10 +299,12 @@ const VoiceForm: React.FC = () => {
   const guardarEnBackend = async () => {
     try {
       // Usar ruta relativa para que funcione tanto en desarrollo como producción
-      const apiUrl = window.location.hostname === 'localhost' && window.location.port === '5173'
-        ? "http://localhost:5016/api/Registros"
-        : "/api/Registros";
-      
+      const apiUrl =
+        window.location.hostname === "localhost" &&
+        window.location.port === "5173"
+          ? "http://localhost:5016/api/Registros"
+          : "/api/Registros";
+
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -326,7 +340,10 @@ const VoiceForm: React.FC = () => {
         }, 3000);
       } else {
         await response.text(); // Consumir el response
-        setModal({ type: "error", message: `Error al guardar. Status: ${response.status}` });
+        setModal({
+          type: "error",
+          message: `Error al guardar. Status: ${response.status}`,
+        });
       }
     } catch (error) {
       console.error("Error:", error);
@@ -337,10 +354,9 @@ const VoiceForm: React.FC = () => {
   useEffect(() => {
     if (started && step < fields.length) {
       const timer = setTimeout(() => {
-        speak(fields[step].prompt, () => {
-          setTimeout(startListening, 600);
-        });
-      }, 300);
+        startListening();
+        speak(fields[step].prompt);
+      }, 200);
       return () => clearTimeout(timer);
     }
   }, [step, started, startListening, fields]);
@@ -354,7 +370,10 @@ const VoiceForm: React.FC = () => {
           className="w-64 max-w-full object-contain"
         />
 
-        <button onClick={syncHardware} className="text-black underline text-sm font-semibold">
+        <button
+          onClick={syncHardware}
+          className="text-black underline text-sm font-semibold"
+        >
           Sincronizar
         </button>
 
@@ -373,8 +392,12 @@ const VoiceForm: React.FC = () => {
       <div className="px-6 pt-5 pb-[9px] border-b-2 border-[#e0e0e0] bg-[#cf1313]">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="m-0 text-[20px] font-black tracking-tight text-white/90">Captura</h2>
-            <p className="mt-1 text-sm text-white/70">Completa los datos y guarda en el sistema.</p>
+            <h2 className="m-0 text-[20px] font-black tracking-tight text-white/90">
+              Captura
+            </h2>
+            <p className="mt-1 text-sm text-white/70">
+              Completa los datos y guarda en el sistema.
+            </p>
           </div>
 
           <div className="shrink-0">
@@ -384,7 +407,9 @@ const VoiceForm: React.FC = () => {
                   ? "bg-white text-[#cf1313] border-white"
                   : "bg-[#cf1313] text-white/90 border-white/40"
               }`}
-              title={isListening ? "Micrófono escuchando" : "Micrófono en espera"}
+              title={
+                isListening ? "Micrófono escuchando" : "Micrófono en espera"
+              }
             >
               {isListening ? "ESCUCHANDO" : "LISTO"}
             </span>
@@ -410,19 +435,27 @@ const VoiceForm: React.FC = () => {
               }`}
               onClick={() => setStep(index)}
             >
-              <label className="text-[10px] text-black font-black uppercase">{f.label}</label>
+              <label className="text-[10px] text-black font-black uppercase">
+                {f.label}
+              </label>
               <input
                 type="text"
                 className="w-full mt-1 bg-transparent border-0 outline-none text-base font-semibold text-black"
                 style={{
                   textTransform:
-                    f.key === "empresa" || f.key === "cliente" || f.key === "concepto" ? "uppercase" : "none",
+                    f.key === "empresa" ||
+                    f.key === "cliente" ||
+                    f.key === "concepto"
+                      ? "uppercase"
+                      : "none",
                 }}
                 value={data[f.key] as string}
                 onChange={(e) => handleInputChange(f.key, e.target.value)}
                 placeholder="..."
               />
-              {step === index && <div className="mt-2 h-0.5 bg-[#cf1313]/80 rounded" />}
+              {step === index && (
+                <div className="mt-2 h-0.5 bg-[#cf1313]/80 rounded" />
+              )}
             </div>
           ))}
         </div>
@@ -430,11 +463,18 @@ const VoiceForm: React.FC = () => {
         {/* Campos destino */}
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="p-3 rounded-xl bg-white border border-slate-200">
-            <label className="text-[10px] text-black font-black uppercase">Medio de contacto</label>
+            <label className="text-[10px] text-black font-black uppercase">
+              Medio de contacto
+            </label>
             <select
               className="w-full mt-1 bg-white border border-slate-300 rounded-lg px-3 py-2 outline-none text-sm focus:border-[#cf1313] focus:ring-2 focus:ring-[#cf1313]/20"
               value={data.medioContacto}
-              onChange={(e) => handleInputChange("medioContacto", e.target.value as ClientData["medioContacto"])}
+              onChange={(e) =>
+                handleInputChange(
+                  "medioContacto",
+                  e.target.value as ClientData["medioContacto"],
+                )
+              }
               required
             >
               <option value="">Seleccionar...</option>
@@ -444,7 +484,9 @@ const VoiceForm: React.FC = () => {
           </div>
 
           <div className="p-3 rounded-xl bg-white border border-slate-200">
-            <label className="text-[10px] text-black font-black uppercase">Asignado a</label>
+            <label className="text-[10px] text-black font-black uppercase">
+              Asignado a
+            </label>
             <select
               className="w-full mt-1 bg-white border border-slate-300 rounded-lg px-3 py-2 outline-none text-sm focus:border-[#cf1313] focus:ring-2 focus:ring-[#cf1313]/20"
               value={data.asignadoA}
@@ -462,13 +504,18 @@ const VoiceForm: React.FC = () => {
 
           <div className="p-3 rounded-xl bg-white border border-slate-200">
             <div className="flex items-center justify-between gap-4">
-              <label className="text-[10px] text-black font-black uppercase">Línea de venta</label>
+              <label className="text-[10px] text-black font-black uppercase">
+                Línea de venta
+              </label>
               <button
                 type="button"
                 className="text-xs text-[#cf1313] underline font-semibold"
                 onClick={() => {
                   setLineaVentaManual(false);
-                  setData((prev) => ({ ...prev, lineaVenta: detectLineaVenta(prev.concepto) }));
+                  setData((prev) => ({
+                    ...prev,
+                    lineaVenta: detectLineaVenta(prev.concepto),
+                  }));
                 }}
                 title="Recalcular desde Concepto"
               >
@@ -481,7 +528,10 @@ const VoiceForm: React.FC = () => {
               value={data.lineaVenta}
               onChange={(e) => {
                 setLineaVentaManual(true);
-                handleInputChange("lineaVenta", e.target.value as ClientData["lineaVenta"]);
+                handleInputChange(
+                  "lineaVenta",
+                  e.target.value as ClientData["lineaVenta"],
+                );
               }}
               required
             >
@@ -493,7 +543,10 @@ const VoiceForm: React.FC = () => {
             </select>
 
             <p className="mt-2 text-[11px] text-black">
-              Sugerencia: <span className="font-semibold">{detectLineaVenta(data.concepto) || "(sin detectar)"}</span>
+              Sugerencia:{" "}
+              <span className="font-semibold">
+                {detectLineaVenta(data.concepto) || "(sin detectar)"}
+              </span>
               {lineaVentaManual ? " · manual" : " · auto"}
             </p>
           </div>
@@ -501,7 +554,9 @@ const VoiceForm: React.FC = () => {
 
         {!validation.ok && (
           <div className="mt-4 p-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-800">
-            <div className="font-black uppercase text-xs mb-2 text-red-800">Faltan datos</div>
+            <div className="font-black uppercase text-xs mb-2 text-red-800">
+              Faltan datos
+            </div>
             <ul className="list-disc pl-5 space-y-1">
               {validation.errors.map((e) => (
                 <li key={e}>{e}</li>
@@ -512,7 +567,9 @@ const VoiceForm: React.FC = () => {
 
         <button
           className={`w-full mt-5 py-3 rounded-xl font-black text-lg shadow-lg transition-colors ${
-            validation.ok ? "bg-[#cf1313] hover:bg-[#b90f0f] text-white" : "bg-slate-200 text-black/70 cursor-not-allowed"
+            validation.ok
+              ? "bg-[#cf1313] hover:bg-[#b90f0f] text-white"
+              : "bg-slate-200 text-black/70 cursor-not-allowed"
           }`}
           onClick={guardarEnBackend}
           disabled={!validation.ok}
@@ -529,7 +586,11 @@ const VoiceForm: React.FC = () => {
             {modal.type === "success" && (
               <div className="mx-auto mb-6">
                 <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100">
-                  <svg className="w-10 h-10 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <svg
+                    className="w-10 h-10 text-green-600"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
                     <path
                       fillRule="evenodd"
                       d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
@@ -544,7 +605,11 @@ const VoiceForm: React.FC = () => {
             {modal.type === "error" && (
               <div className="mx-auto mb-6">
                 <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-100">
-                  <svg className="w-10 h-10 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                  <svg
+                    className="w-10 h-10 text-red-600"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
                     <path
                       fillRule="evenodd"
                       d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
@@ -556,7 +621,9 @@ const VoiceForm: React.FC = () => {
             )}
 
             {/* Mensaje */}
-            <h2 className={`text-2xl font-black mb-2 ${modal.type === "success" ? "text-green-600" : "text-red-600"}`}>
+            <h2
+              className={`text-2xl font-black mb-2 ${modal.type === "success" ? "text-green-600" : "text-red-600"}`}
+            >
               {modal.type === "success" ? "¡Correcto!" : "Error"}
             </h2>
             <p className="text-gray-700 text-base mb-6">{modal.message}</p>

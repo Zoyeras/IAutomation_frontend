@@ -11,7 +11,7 @@ interface ClientData {
   concepto: string;
 
   // Deben coincidir con el backend (.NET Registro)
-  medioContacto: "WhatsApp" | "Correo" | "";
+  medioContacto: "WhatsApp" | "Correo" | "Llamada" | "";
   asignadoA: string; // Enviamos el NOMBRE (ej: "LILIANA DEL PILAR") para que backend lo mapee a ID
   lineaVenta:
     | "Venta"
@@ -101,8 +101,9 @@ const VoiceForm: React.FC = () => {
         { key: "cliente", label: "Nombre del Cliente", prompt: "Nombre" },
         { key: "celular", label: "Celular", prompt: "Celular" },
         { key: "correo", label: "Correo", prompt: "Correo" },
-        { key: "tipoCliente", label: "Tipo de Cliente", prompt: "Tipo" },
         { key: "concepto", label: "Concepto", prompt: "Concepto" },
+        { key: "asignadoA", label: "Asignado A", prompt: "Asignado a" },
+        { key: "medioContacto", label: "Medio de Contacto", prompt: "Medio de contacto" },
       ],
       [],
     );
@@ -138,6 +139,56 @@ const VoiceForm: React.FC = () => {
       return s;
     };
 
+    const normalizeAsignadoA = (raw: string): string => {
+      const normalized = raw.trim().toUpperCase();
+
+      // Buscar coincidencia exacta o parcial con los nombres de la lista
+      const match = ASIGNADOS.find((asignado) => {
+        const label = asignado.label.toUpperCase();
+        const normalizedInput = normalized;
+
+        // Coincidencia exacta
+        if (label === normalizedInput) return true;
+
+        // Coincidencia por nombre completo
+        if (label.includes(normalizedInput)) return true;
+
+        // Coincidencia por primer nombre
+        const firstName = label.split(" ")[0];
+        if (firstName === normalizedInput) return true;
+
+        // Coincidencia si el usuario dice solo el nombre (ej: "Liliana")
+        const words = normalizedInput.split(" ");
+        if (words.some(word => label.includes(word) && word.length > 3)) return true;
+
+        return false;
+      });
+
+      return match ? match.label : normalized;
+    };
+
+    const normalizeMedioContacto = (raw: string): ClientData["medioContacto"] => {
+      const normalized = raw.toLowerCase().trim();
+
+      if (normalized.includes("whats") || normalized.includes("what") ||
+          normalized.includes("guasap") || normalized.includes("wasap")) {
+        return "WhatsApp";
+      }
+
+      if (normalized.includes("email") || normalized.includes("correo") ||
+          normalized.includes("mail") || normalized.includes("e-mail")) {
+        return "Correo";
+      }
+
+      if (normalized.includes("llamada") || normalized.includes("llamar") ||
+          normalized.includes("telefono") || normalized.includes("teléfono") ||
+          normalized.includes("celular") || normalized.includes("móvil")) {
+        return "Llamada";
+      }
+
+      return "";
+    };
+
     switch (key) {
       case "empresa":
       case "cliente":
@@ -158,6 +209,12 @@ const VoiceForm: React.FC = () => {
         if (normalized.includes("recuperado")) return "Recuperado";
         return clean;
       }
+
+      case "asignadoA":
+        return normalizeAsignadoA(clean);
+
+      case "medioContacto":
+        return normalizeMedioContacto(clean);
 
       default:
         return clean;
@@ -273,10 +330,9 @@ const VoiceForm: React.FC = () => {
   const validation = (() => {
     const errors: string[] = [];
 
-    // Requeridos (según lo indicado): NIT, ciudad, tipoCliente y concepto
+    // Requeridos: NIT, ciudad y concepto
     if (!data.nit) errors.push("NIT es obligatorio");
     if (!data.ciudad) errors.push("Ciudad es obligatoria");
-    if (!data.tipoCliente) errors.push("Tipo de cliente es obligatorio");
     if (!data.concepto) errors.push("Concepto es obligatorio");
 
     // Estos siguen siendo requeridos para el flujo de asignación/CRM
@@ -438,21 +494,50 @@ const VoiceForm: React.FC = () => {
               <label className="text-[10px] text-black font-black uppercase">
                 {f.label}
               </label>
-              <input
-                type="text"
-                className="w-full mt-1 bg-transparent border-0 outline-none text-base font-semibold text-black"
-                style={{
-                  textTransform:
-                    f.key === "empresa" ||
-                    f.key === "cliente" ||
-                    f.key === "concepto"
-                      ? "uppercase"
-                      : "none",
-                }}
-                value={data[f.key] as string}
-                onChange={(e) => handleInputChange(f.key, e.target.value)}
-                placeholder="..."
-              />
+
+              {/* Si es asignadoA, mostrar select en lugar de input */}
+              {f.key === "asignadoA" ? (
+                <select
+                  className="w-full mt-1 bg-transparent border-0 outline-none text-base font-semibold text-black"
+                  value={data.asignadoA}
+                  onChange={(e) => handleInputChange("asignadoA", e.target.value)}
+                >
+                  <option value="">Seleccionar...</option>
+                  {ASIGNADOS.map((a) => (
+                    <option key={a.id} value={a.label}>
+                      {a.label}
+                    </option>
+                  ))}
+                </select>
+              ) : f.key === "medioContacto" ? (
+                <select
+                  className="w-full mt-1 bg-transparent border-0 outline-none text-base font-semibold text-black"
+                  value={data.medioContacto}
+                  onChange={(e) => handleInputChange("medioContacto", e.target.value as ClientData["medioContacto"])}
+                >
+                  <option value="">Seleccionar...</option>
+                  <option value="WhatsApp">WhatsApp</option>
+                  <option value="Correo">Correo</option>
+                  <option value="Llamada">Llamada</option>
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  className="w-full mt-1 bg-transparent border-0 outline-none text-base font-semibold text-black"
+                  style={{
+                    textTransform:
+                      f.key === "empresa" ||
+                      f.key === "cliente" ||
+                      f.key === "concepto"
+                        ? "uppercase"
+                        : "none",
+                  }}
+                  value={data[f.key] as string}
+                  onChange={(e) => handleInputChange(f.key, e.target.value)}
+                  placeholder="..."
+                />
+              )}
+
               {step === index && (
                 <div className="mt-2 h-0.5 bg-[#cf1313]/80 rounded" />
               )}
@@ -460,48 +545,8 @@ const VoiceForm: React.FC = () => {
           ))}
         </div>
 
-        {/* Campos destino */}
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="p-3 rounded-xl bg-white border border-slate-200">
-            <label className="text-[10px] text-black font-black uppercase">
-              Medio de contacto
-            </label>
-            <select
-              className="w-full mt-1 bg-white border border-slate-300 rounded-lg px-3 py-2 outline-none text-sm focus:border-[#cf1313] focus:ring-2 focus:ring-[#cf1313]/20"
-              value={data.medioContacto}
-              onChange={(e) =>
-                handleInputChange(
-                  "medioContacto",
-                  e.target.value as ClientData["medioContacto"],
-                )
-              }
-              required
-            >
-              <option value="">Seleccionar...</option>
-              <option value="WhatsApp">WhatsApp</option>
-              <option value="Correo">Correo</option>
-            </select>
-          </div>
-
-          <div className="p-3 rounded-xl bg-white border border-slate-200">
-            <label className="text-[10px] text-black font-black uppercase">
-              Asignado a
-            </label>
-            <select
-              className="w-full mt-1 bg-white border border-slate-300 rounded-lg px-3 py-2 outline-none text-sm focus:border-[#cf1313] focus:ring-2 focus:ring-[#cf1313]/20"
-              value={data.asignadoA}
-              onChange={(e) => handleInputChange("asignadoA", e.target.value)}
-              required
-            >
-              <option value="">Seleccionar...</option>
-              {ASIGNADOS.map((a) => (
-                <option key={a.id} value={a.label}>
-                  {a.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
+        {/* Campo Línea de venta */}
+        <div className="mt-4 grid grid-cols-1 gap-3">
           <div className="p-3 rounded-xl bg-white border border-slate-200">
             <div className="flex items-center justify-between gap-4">
               <label className="text-[10px] text-black font-black uppercase">

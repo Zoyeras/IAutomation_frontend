@@ -13,12 +13,7 @@ interface ClientData {
   // Deben coincidir con el backend (.NET Registro)
   medioContacto: "WhatsApp" | "Correo" | "Llamada" | "";
   asignadoA: string; // Enviamos el NOMBRE (ej: "LILIANA DEL PILAR") para que backend lo mapee a ID
-  lineaVenta:
-    | "Venta"
-    | "Mantenimiento"
-    | "Servicio montacargas"
-    | "Alquiler montacargas"
-    | "";
+  lineaVenta: "Venta" | "Mantenimiento" | "Alquiler montacargas" | "";
 }
 
 const ASIGNADOS: { id: string; label: string }[] = [
@@ -34,22 +29,25 @@ const ASIGNADOS: { id: string; label: string }[] = [
 
 const detectLineaVenta = (conceptoRaw: string): ClientData["lineaVenta"] => {
   const c = (conceptoRaw || "").trim().toLowerCase();
-  if (!c) return "";
+  if (!c) return "Venta";
 
-  // Servicio / alquiler montacargas
-  if (c.includes("montacarg")) {
-    if (c.includes("alquiler")) return "Alquiler montacargas";
-    return "Servicio montacargas";
+  // Alquiler / servicio montacargas
+  if (c.includes("montacarg") || c.includes("alquiler")) {
+    return "Alquiler montacargas";
   }
 
-  // mantenimiento
-  if (c.includes("mantenimiento") || c.includes("manten"))
+  // mantenimiento / servicio general
+  if (
+    c.includes("mantenimiento") ||
+    c.includes("manten") ||
+    c.includes("servicio")
+  )
     return "Mantenimiento";
 
   // venta
   if (c.includes("venta") || c.includes("vent")) return "Venta";
 
-  return "";
+  return "Venta";
 };
 
 type MinimalSpeechRecognitionResult = { transcript: string };
@@ -77,6 +75,8 @@ const VoiceForm: React.FC = () => {
     type: "success" | "error";
     message: string;
   } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [pollingId, setPollingId] = useState<number | null>(null);
 
   const [data, setData] = useState<ClientData>({
     nit: "",
@@ -95,15 +95,19 @@ const VoiceForm: React.FC = () => {
   const fields: { key: keyof ClientData; label: string; prompt: string }[] =
     React.useMemo(
       () => [
-        { key: "nit", label: "NIT", prompt: "NIT" },
+        { key: "concepto", label: "Concepto", prompt: "Concepto" },
         { key: "empresa", label: "Nombre de Empresa", prompt: "Empresa" },
+        { key: "nit", label: "NIT", prompt: "NIT" },
         { key: "ciudad", label: "Ciudad", prompt: "Ciudad" },
+        {
+          key: "medioContacto",
+          label: "Medio de Contacto",
+          prompt: "Medio de contacto",
+        },
         { key: "cliente", label: "Nombre del Cliente", prompt: "Nombre" },
         { key: "celular", label: "Celular", prompt: "Celular" },
-        { key: "correo", label: "Correo", prompt: "Correo" },
-        { key: "concepto", label: "Concepto", prompt: "Concepto" },
-        { key: "asignadoA", label: "Asignado A", prompt: "Asignado a" },
-        { key: "medioContacto", label: "Medio de Contacto", prompt: "Medio de contacto" },
+        { key: "correo", label: "Email", prompt: "Email" },
+        { key: "asignadoA", label: "Asignar A", prompt: "Asignar a" },
       ],
       [],
     );
@@ -159,7 +163,8 @@ const VoiceForm: React.FC = () => {
 
         // Coincidencia si el usuario dice solo el nombre (ej: "Liliana")
         const words = normalizedInput.split(" ");
-        if (words.some(word => label.includes(word) && word.length > 3)) return true;
+        if (words.some((word) => label.includes(word) && word.length > 3))
+          return true;
 
         return false;
       });
@@ -167,22 +172,37 @@ const VoiceForm: React.FC = () => {
       return match ? match.label : normalized;
     };
 
-    const normalizeMedioContacto = (raw: string): ClientData["medioContacto"] => {
+    const normalizeMedioContacto = (
+      raw: string,
+    ): ClientData["medioContacto"] => {
       const normalized = raw.toLowerCase().trim();
 
-      if (normalized.includes("whats") || normalized.includes("what") ||
-          normalized.includes("guasap") || normalized.includes("wasap")) {
+      if (
+        normalized.includes("whats") ||
+        normalized.includes("what") ||
+        normalized.includes("guasap") ||
+        normalized.includes("wasap")
+      ) {
         return "WhatsApp";
       }
 
-      if (normalized.includes("email") || normalized.includes("correo") ||
-          normalized.includes("mail") || normalized.includes("e-mail")) {
+      if (
+        normalized.includes("email") ||
+        normalized.includes("correo") ||
+        normalized.includes("mail") ||
+        normalized.includes("e-mail")
+      ) {
         return "Correo";
       }
 
-      if (normalized.includes("llamada") || normalized.includes("llamar") ||
-          normalized.includes("telefono") || normalized.includes("teléfono") ||
-          normalized.includes("celular") || normalized.includes("móvil")) {
+      if (
+        normalized.includes("llamada") ||
+        normalized.includes("llamar") ||
+        normalized.includes("telefono") ||
+        normalized.includes("teléfono") ||
+        normalized.includes("celular") ||
+        normalized.includes("móvil")
+      ) {
         return "Llamada";
       }
 
@@ -277,10 +297,8 @@ const VoiceForm: React.FC = () => {
         type: "success",
         message: "Hardware sincronizado correctamente",
       });
-      setTimeout(() => setModal(null), 2000);
     } catch {
       setModal({ type: "error", message: "Error al sincronizar hardware" });
-      setTimeout(() => setModal(null), 2000);
     }
   };
 
@@ -330,8 +348,7 @@ const VoiceForm: React.FC = () => {
   const validation = (() => {
     const errors: string[] = [];
 
-    // Requeridos: NIT, ciudad y concepto
-    if (!data.nit) errors.push("NIT es obligatorio");
+    // Requeridos: ciudad y concepto
     if (!data.ciudad) errors.push("Ciudad es obligatoria");
     if (!data.concepto) errors.push("Concepto es obligatorio");
 
@@ -354,6 +371,9 @@ const VoiceForm: React.FC = () => {
 
   const guardarEnBackend = async () => {
     try {
+      if (isSaving) return;
+      setIsSaving(true);
+
       // Usar ruta relativa para que funcione tanto en desarrollo como producción
       const apiUrl =
         window.location.hostname === "localhost" &&
@@ -370,42 +390,100 @@ const VoiceForm: React.FC = () => {
       console.log("Response status:", response.status);
 
       if (response.ok || response.status === 200 || response.status === 201) {
-        setModal({ type: "success", message: "Datos guardados exitosamente" });
+        const payload = await response.json();
+        const id = Number(payload?.id);
+        if (!Number.isFinite(id) || id <= 0) {
+          setModal({
+            type: "error",
+            message: "No se recibio el ID del registro",
+          });
+          setIsSaving(false);
+          return;
+        }
 
-        // Limpiar los campos del formulario
-        setData({
-          nit: "",
-          empresa: "",
-          ciudad: "",
-          cliente: "",
-          celular: "",
-          correo: "",
-          tipoCliente: "",
-          concepto: "",
-          medioContacto: "",
-          asignadoA: "",
-          lineaVenta: "",
-        });
-
-        // Resetear el paso al inicio
-        setStep(0);
-
-        // Refrescar la página después de 3 segundos
-        setTimeout(() => {
-          window.location.reload();
-        }, 3000);
+        setPollingId(id);
       } else {
-        await response.text(); // Consumir el response
+        await response.text();
         setModal({
           type: "error",
           message: `Error al guardar. Status: ${response.status}`,
         });
+        setIsSaving(false);
       }
     } catch (error) {
       console.error("Error:", error);
       setModal({ type: "error", message: "Error de conexión al servidor" });
+      setIsSaving(false);
     }
   };
+
+  const limpiarFormulario = useCallback(() => {
+    setData({
+      nit: "",
+      empresa: "",
+      ciudad: "",
+      cliente: "",
+      celular: "",
+      correo: "",
+      tipoCliente: "",
+      concepto: "",
+      medioContacto: "",
+      asignadoA: "",
+      lineaVenta: "",
+    });
+    setStep(0);
+  }, []);
+
+  useEffect(() => {
+    if (!pollingId) return;
+
+    let canceled = false;
+    const apiBase =
+      window.location.hostname === "localhost" &&
+      window.location.port === "5173"
+        ? "http://localhost:5016/api/Registros"
+        : "/api/Registros";
+
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`${apiBase}/${pollingId}`);
+        if (!response.ok) return;
+
+        const payload = await response.json();
+        const estado = String(payload?.estado ?? "").toUpperCase();
+        const mensaje = String(payload?.mensaje ?? "").trim();
+
+        if (estado === "ERROR") {
+          if (!canceled) {
+            setModal({
+              type: "error",
+              message: mensaje || "Error en la automatizacion.",
+            });
+            setPollingId(null);
+            setIsSaving(false);
+          }
+        }
+
+        if (estado === "COMPLETADO") {
+          if (!canceled) {
+            setModal({
+              type: "success",
+              message: mensaje || "Ticket creado correctamente",
+            });
+            setPollingId(null);
+            setIsSaving(false);
+          }
+        }
+      } catch (err) {
+        console.error("Polling error:", err);
+      }
+    }, 2500);
+
+    return () => {
+      canceled = true;
+      clearInterval(interval);
+    };
+  }, [pollingId]);
 
   useEffect(() => {
     if (started && step < fields.length) {
@@ -485,6 +563,8 @@ const VoiceForm: React.FC = () => {
             <div
               key={f.key}
               className={`p-3 rounded-xl transition-all cursor-pointer ${
+                f.key === "concepto" ? "md:col-span-2" : ""
+              } ${
                 step === index
                   ? "bg-red-50 border-2 border-[#cf1313]"
                   : "bg-white border border-slate-200"
@@ -500,7 +580,9 @@ const VoiceForm: React.FC = () => {
                 <select
                   className="w-full mt-1 bg-transparent border-0 outline-none text-base font-semibold text-black"
                   value={data.asignadoA}
-                  onChange={(e) => handleInputChange("asignadoA", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("asignadoA", e.target.value)
+                  }
                 >
                   <option value="">Seleccionar...</option>
                   {ASIGNADOS.map((a) => (
@@ -513,7 +595,12 @@ const VoiceForm: React.FC = () => {
                 <select
                   className="w-full mt-1 bg-transparent border-0 outline-none text-base font-semibold text-black"
                   value={data.medioContacto}
-                  onChange={(e) => handleInputChange("medioContacto", e.target.value as ClientData["medioContacto"])}
+                  onChange={(e) =>
+                    handleInputChange(
+                      "medioContacto",
+                      e.target.value as ClientData["medioContacto"],
+                    )
+                  }
                 >
                   <option value="">Seleccionar...</option>
                   <option value="WhatsApp">WhatsApp</option>
@@ -583,7 +670,6 @@ const VoiceForm: React.FC = () => {
               <option value="">Seleccionar...</option>
               <option value="Venta">Venta</option>
               <option value="Mantenimiento">Mantenimiento</option>
-              <option value="Servicio montacargas">Servicio montacargas</option>
               <option value="Alquiler montacargas">Alquiler montacargas</option>
             </select>
 
@@ -612,14 +698,14 @@ const VoiceForm: React.FC = () => {
 
         <button
           className={`w-full mt-5 py-3 rounded-xl font-black text-lg shadow-lg transition-colors ${
-            validation.ok
+            validation.ok && !isSaving
               ? "bg-[#cf1313] hover:bg-[#b90f0f] text-white"
               : "bg-slate-200 text-black/70 cursor-not-allowed"
           }`}
           onClick={guardarEnBackend}
-          disabled={!validation.ok}
+          disabled={!validation.ok || isSaving}
         >
-          GUARDAR EN SISTEMA
+          {isSaving ? "PROCESANDO..." : "GUARDAR EN SISTEMA"}
         </button>
       </div>
 
@@ -673,15 +759,18 @@ const VoiceForm: React.FC = () => {
             </h2>
             <p className="text-gray-700 text-base mb-6">{modal.message}</p>
 
-            {/* Botón cerrar (solo para error, success se cierra automático) */}
-            {modal.type === "error" && (
-              <button
-                onClick={() => setModal(null)}
-                className="px-6 py-2 bg-[#cf1313] hover:bg-[#b90f0f] text-white font-black rounded-lg transition-colors"
-              >
-                OK
-              </button>
-            )}
+            <button
+              onClick={() => {
+                const wasSuccess = modal.type === "success";
+                setModal(null);
+                if (wasSuccess) {
+                  limpiarFormulario();
+                }
+              }}
+              className="px-6 py-2 bg-[#cf1313] hover:bg-[#b90f0f] text-white font-black rounded-lg transition-colors"
+            >
+              OK
+            </button>
           </div>
         </div>
       )}
